@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>송우교회 2026 초등부 회계장부</title>
+    <style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+.container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+h1 { font-size: 2em; margin-bottom: 20px; }
+.balance-summary { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; margin-top: 20px; }
+.balance-item { background: rgba(255,255,255,0.2); padding: 15px 30px; border-radius: 10px; }
+.balance-item span { display: block; font-size: 0.9em; opacity: 0.9; margin-bottom: 5px; }
+.balance-item strong { display: block; font-size: 1.5em; }
+.input-section { padding: 30px; border-bottom: 2px solid #f0f0f0; }
+h2 { color: #333; margin-bottom: 20px; font-size: 1.5em; }
+.form-group { margin-bottom: 20px; }
+label { display: block; margin-bottom: 8px; color: #555; font-weight: 600; }
+input, select, textarea { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em; }
+.btn-submit { width: 100%; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer; }
+.transaction-list { padding: 30px; }
+table { width: 100%; border-collapse: collapse; }
+thead { background: #f8f9fa; }
+th, td { padding: 15px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+.btn-edit, .btn-delete, .btn-receipt { padding: 6px 12px; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 0.9em; margin: 2px; }
+.btn-edit { background: #f59e0b; }
+.btn-delete { background: #ef4444; }
+.btn-receipt { background: #3b82f6; padding: 4px 8px; font-size: 0.85em; }
+.modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
+.modal.active { display: flex; align-items: center; justify-content: center; }
+.modal img { max-width: 90%; max-height: 90%; }
+.modal-close { position: absolute; top: 20px; right: 40px; color: white; font-size: 40px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⛪ 송우교회 2026 초등부 회계장부</h1>
+            <div class="balance-summary">
+                <div class="balance-item">
+                    <span>현재 잔액</span>
+                    <strong id="balance">0원</strong>
+                </div>
+                <div class="balance-item">
+                    <span>총 수입</span>
+                    <strong id="income">0원</strong>
+                </div>
+                <div class="balance-item">
+                    <span>총 지출</span>
+                    <strong id="expense">0원</strong>
+                </div>
+            </div>
+        </header>
+
+        <div class="input-section">
+            <h2>거래 내역 입력</h2>
+            <form id="form">
+                <div class="form-group">
+                    <label>날짜</label>
+                    <input type="date" id="date" required>
+                </div>
+                <div class="form-group">
+                    <label>구분</label>
+                    <select id="type" required>
+                        <option value="income">수입</option>
+                        <option value="expense">지출</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>항목</label>
+                    <input type="text" id="category" placeholder="예: 헌금, 간식비" required>
+                </div>
+                <div class="form-group">
+                    <label>금액</label>
+                    <input type="text" id="amount" placeholder="예: 10,000" required>
+                </div>
+                <div class="form-group">
+                    <label>메모</label>
+                    <textarea id="memo" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>영수증 사진</label>
+                    <input type="file" id="file" accept="image/*">
+                    <div id="preview" style="margin-top:10px;"></div>
+                </div>
+                <button type="submit" class="btn-submit">등록하기</button>
+            </form>
+        </div>
+
+        <div class="transaction-list">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                <h2 style="margin:0;">거래 내역</h2>
+                <button onclick="exportExcel()" style="padding:10px 20px;background:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Excel로 내보내기</button>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>날짜</th><th>구분</th><th>항목</th><th>금액</th><th>메모</th><th>관리</th></tr>
+                </thead>
+                <tbody id="list">
+                    <tr><td colspan="6" style="text-align:center;color:#999;">등록된 내역이 없습니다</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modal" class="modal" onclick="this.classList.remove('active')">
+        <span class="modal-close">&times;</span>
+        <img id="modalImg" src="">
+    </div>
+
+    <script>
+let data = [];
+let receipt = null;
+let db;
+
+// IndexedDB 초기화
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('ChurchAccounting', 1);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+            db = request.result;
+            resolve();
+        };
+
+        request.onupgradeneeded = (e) => {
+            const database = e.target.result;
+            if (!database.objectStoreNames.contains('transactions')) {
+                database.createObjectStore('transactions', { keyPath: 'id' });
+            }
+        };
+    });
+}
+
+// 데이터 저장
+async function saveData() {
+    if (!db) return;
+    const tx = db.transaction(['transactions'], 'readwrite');
+    const store = tx.objectStore('transactions');
+
+    // 기존 데이터 모두 삭제
+    store.clear();
+
+    // 새 데이터 저장
+    for (const item of data) {
+        store.add(item);
+    }
+}
+
+// 데이터 불러오기
+async function loadData() {
+    if (!db) return;
+    return new Promise((resolve) => {
+        const tx = db.transaction(['transactions'], 'readonly');
+        const store = tx.objectStore('transactions');
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+            data = request.result || [];
+            resolve();
+        };
+    });
+}
+
+window.onload = async function() {
+    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+    try {
+        await initDB();
+        await loadData();
+    } catch(e) {
+        console.error('DB 초기화 실패:', e);
+    }
+
+    update();
+
+    document.getElementById('file').onchange = function(e) {
+        const f = e.target.files[0];
+        if (!f) return;
+
+        const r = new FileReader();
+        r.onload = function(ev) {
+            const img = new Image();
+            img.onload = function() {
+                const c = document.createElement('canvas');
+                let w = img.width, h = img.height;
+                if (w > 800 || h > 800) {
+                    if (w > h) { h = h/w*800; w = 800; }
+                    else { w = w/h*800; h = 800; }
+                }
+                c.width = w;
+                c.height = h;
+                c.getContext('2d').drawImage(img, 0, 0, w, h);
+                receipt = c.toDataURL('image/jpeg', 0.6);
+                document.getElementById('preview').innerHTML = '<img src="'+receipt+'" style="max-width:150px;border-radius:8px;">';
+            };
+            img.src = ev.target.result;
+        };
+        r.readAsDataURL(f);
+    };
+
+    document.getElementById('form').onsubmit = function(e) {
+        e.preventDefault();
+        const amt = document.getElementById('amount').value.replace(/,/g, '');
+
+        data.push({
+            id: Date.now(),
+            date: document.getElementById('date').value,
+            type: document.getElementById('type').value,
+            category: document.getElementById('category').value,
+            amount: parseInt(amt),
+            memo: document.getElementById('memo').value,
+            receipt: receipt
+        });
+
+        saveData();
+        this.reset();
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('preview').innerHTML = '';
+        receipt = null;
+        update();
+        alert('등록 완료!');
+    };
+
+    document.getElementById('amount').oninput = function(e) {
+        let v = e.target.value.replace(/,/g, '');
+        if (v) e.target.value = parseInt(v).toLocaleString('ko-KR');
+    };
+};
+
+function update() {
+    const tbody = document.getElementById('list');
+
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">등록된 내역이 없습니다</td></tr>';
+    } else {
+        tbody.innerHTML = data.map(t => `
+            <tr>
+                <td>${t.date}</td>
+                <td>${t.type==='income'?'수입':'지출'}</td>
+                <td>${t.category}</td>
+                <td>${t.amount.toLocaleString()}원</td>
+                <td>${t.memo||'-'}${t.receipt?'<br><button class="btn-receipt" onclick="view('+t.id+')">영수증</button>':''}</td>
+                <td>
+                    <button class="btn-edit" onclick="edit(${t.id})">수정</button>
+                    <button class="btn-delete" onclick="del(${t.id})">삭제</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    const inc = data.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const exp = data.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+
+    document.getElementById('income').textContent = inc.toLocaleString()+'원';
+    document.getElementById('expense').textContent = exp.toLocaleString()+'원';
+    document.getElementById('balance').textContent = (inc-exp).toLocaleString()+'원';
+}
+
+function edit(id) {
+    const pw = prompt('비밀번호:');
+    if (pw !== '0128') { alert('비밀번호 오류'); return; }
+
+    const t = data.find(x=>x.id===id);
+    if (!t) return;
+
+    document.getElementById('date').value = t.date;
+    document.getElementById('type').value = t.type;
+    document.getElementById('category').value = t.category;
+    document.getElementById('amount').value = t.amount.toLocaleString();
+    document.getElementById('memo').value = t.memo;
+    if (t.receipt) {
+        receipt = t.receipt;
+        document.getElementById('preview').innerHTML = '<img src="'+receipt+'" style="max-width:150px;border-radius:8px;">';
+    }
+
+    data = data.filter(x=>x.id!==id);
+    saveData();
+    update();
+    window.scrollTo({top:0,behavior:'smooth'});
+    alert('수정 후 등록하기를 누르세요');
+}
+
+function del(id) {
+    if (!confirm('삭제하시겠습니까?')) return;
+    data = data.filter(t=>t.id!==id);
+    saveData();
+    update();
+}
+
+function view(id) {
+    const t = data.find(x=>x.id===id);
+    if (t && t.receipt) {
+        document.getElementById('modalImg').src = t.receipt;
+        document.getElementById('modal').classList.add('active');
+    }
+}
+
+function exportExcel() {
+    if (data.length === 0) {
+        alert('내보낼 데이터가 없습니다.');
+        return;
+    }
+
+    // CSV 생성 (UTF-8 BOM 추가로 한글 깨짐 방지)
+    let csv = '\uFEFF';
+    csv += '날짜,구분,항목,금액,메모\n';
+
+    // 날짜순 정렬
+    const sorted = [...data].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    sorted.forEach(t => {
+        const type = t.type === 'income' ? '수입' : '지출';
+        const amount = t.type === 'income' ? t.amount : -t.amount;
+        const memo = (t.memo || '').replace(/"/g, '""'); // 따옴표 이스케이프
+        csv += `${t.date},${type},${t.category},${amount},"${memo}"\n`;
+    });
+
+    // 요약 추가
+    csv += '\n요약\n';
+    const inc = data.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const exp = data.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    csv += `총 수입,${inc}\n`;
+    csv += `총 지출,${exp}\n`;
+    csv += `현재 잔액,${inc-exp}\n`;
+
+    // 다운로드
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const today = new Date().toISOString().split('T')[0];
+
+    link.href = url;
+    link.download = `송우교회_초등부회계_${today}.csv`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    alert('Excel 파일로 내보내기 완료!');
+}
+    </script>
+</body>
+</html>
